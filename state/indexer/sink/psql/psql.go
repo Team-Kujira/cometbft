@@ -81,7 +81,7 @@ func queryWithID(tx *sql.Tx, query string, args ...interface{}) (uint32, error) 
 // insertEvents inserts a slice of events and any indexed attributes of those
 // events into the database associated with dbtx.
 //
-// If txID > 0, the event is attributed to the transaction with that
+// If txID > 0, the event is attributed to the Tendermint transaction with that
 // ID; otherwise it is recorded as a block event.
 func insertEvents(dbtx *sql.Tx, blockID, txID uint32, evts []abci.Event) error {
 	// Populate the transaction ID field iff one is defined (> 0).
@@ -92,9 +92,17 @@ func insertEvents(dbtx *sql.Tx, blockID, txID uint32, evts []abci.Event) error {
 
 	// Add each event to the events table, and retrieve its row ID to use when
 	// adding any attributes the event provides.
-	for _, evt := range evts {
+	for idx, evt := range evts {
 		// Skip events with an empty type.
 		if evt.Type == "" {
+			continue
+		}
+
+		if evt.Type == "rewards" {
+			continue
+		}
+
+		if evt.Type == "commission" {
 			continue
 		}
 
@@ -113,9 +121,10 @@ INSERT INTO `+tableEvents+` (block_id, tx_id, type) VALUES ($1, $2, $3)
 			}
 			compositeKey := evt.Type + "." + string(attr.Key)
 			if _, err := dbtx.Exec(`
-INSERT INTO `+tableAttributes+` (event_id, key, composite_key, value)
-  VALUES ($1, $2, $3, $4);
-`, eid, attr.Key, compositeKey, attr.Value); err != nil {
+INSERT INTO `+tableAttributes+` (tx_id, event_id, idx, key, composite_key, value)
+  VALUES ($1, $2, $3, $4, $5, $6)
+  ON CONFLICT DO NOTHING;
+`, txIDArg, eid, idx, attr.Key, compositeKey, attr.Value); err != nil {
 				return err
 			}
 		}
