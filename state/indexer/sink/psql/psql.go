@@ -111,6 +111,13 @@ INSERT INTO `+tableEvents+` (block_id, tx_id, type) VALUES ($1, $2, $3)
 			if !attr.Index {
 				continue
 			}
+			// Skip any attributes that are larger than the btree index size, currently
+			// update_client.header and
+			// some long `amount` values when claiming multiple rewards
+			if len(attr.Value) > 2704 {
+				continue
+			}
+
 			compositeKey := evt.Type + "." + attr.Key
 			if _, err := dbtx.Exec(`
 INSERT INTO `+tableAttributes+` (event_id, key, composite_key, value)
