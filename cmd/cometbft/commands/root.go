@@ -3,6 +3,7 @@ package commands
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -30,12 +31,9 @@ func registerFlagsRootCmd(cmd *cobra.Command) {
 // sets up the CometBFT root and ensures that the root exists
 func ParseConfig(cmd *cobra.Command) (*cfg.Config, error) {
 	conf := cfg.DefaultConfig()
-	err := viper.Unmarshal(conf)
-	if err != nil {
-		return nil, err
-	}
 
 	var home string
+	var err error
 	if os.Getenv("CMTHOME") != "" {
 		home = os.Getenv("CMTHOME")
 	} else if os.Getenv("TMHOME") != "" {
@@ -47,6 +45,15 @@ func ParseConfig(cmd *cobra.Command) (*cfg.Config, error) {
 		if err != nil {
 			return nil, err
 		}
+	}
+	viper.AddConfigPath(filepath.Join(home, "config"))
+	err = viper.ReadInConfig()
+	if err != nil {
+		return nil, err
+	}
+	err = viper.Unmarshal(conf)
+	if err != nil {
+		return nil, err
 	}
 
 	conf.RootDir = home
