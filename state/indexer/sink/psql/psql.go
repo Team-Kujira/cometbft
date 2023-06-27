@@ -156,8 +156,6 @@ func makeIndexedEvent(compositeKey, value string) abci.Event {
 // IndexBlockEvents indexes the specified block header, part of the
 // indexer.EventSink interface.
 func (es *EventSink) IndexBlockEvents(h types.EventDataNewBlockHeader) error {
-	ts := time.Now().UTC()
-
 	return runInTransaction(es.store, func(dbtx *sql.Tx) error {
 		// Add the block to the blocks table and report back its row ID for use
 		// in indexing the events for the block.
@@ -166,7 +164,7 @@ INSERT INTO `+tableBlocks+` (height, chain_id, created_at)
   VALUES ($1, $2, $3)
   ON CONFLICT DO NOTHING
   RETURNING rowid;
-`, h.Header.Height, es.chainID, ts)
+`, h.Header.Height, es.chainID, h.Header.Time)
 		if err == sql.ErrNoRows {
 			return nil // we already saw this block; quietly succeed
 		} else if err != nil {
