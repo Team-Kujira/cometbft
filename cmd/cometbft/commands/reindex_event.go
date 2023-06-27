@@ -160,6 +160,10 @@ func eventReIndex(cmd *cobra.Command, args eventReIndexArgs) error {
 				ResultEndBlock:   *r.EndBlock,
 			}
 
+			if err := args.blockIndexer.Index(e); err != nil {
+				return fmt.Errorf("block event re-index at height %d failed: %w", i, err)
+			}
+
 			var batch *txindex.Batch
 			if e.NumTxs > 0 {
 				batch = txindex.NewBatch(e.NumTxs)
@@ -180,10 +184,6 @@ func eventReIndex(cmd *cobra.Command, args eventReIndexArgs) error {
 				if err := args.txIndexer.AddBatch(batch); err != nil {
 					return fmt.Errorf("tx event re-index at height %d failed: %w", i, err)
 				}
-			}
-
-			if err := args.blockIndexer.Index(e); err != nil {
-				return fmt.Errorf("block event re-index at height %d failed: %w", i, err)
 			}
 		}
 
