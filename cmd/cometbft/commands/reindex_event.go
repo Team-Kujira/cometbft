@@ -52,6 +52,12 @@ want to use this command.
 	cometbft reindex-event --start-height 2 --end-height 10
 	`,
 	Run: func(cmd *cobra.Command, args []string) {
+		config, err := ParseConfig(cmd)
+		if err != nil {
+			fmt.Println(reindexFailed, err)
+			return
+		}
+
 		bs, ss, err := loadStateAndBlockStore(config)
 		if err != nil {
 			fmt.Println(reindexFailed, err)
