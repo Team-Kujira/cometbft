@@ -172,11 +172,11 @@ INSERT INTO `+tableBlocks+` (height, chain_id, created_at)
 		}
 
 		// Insert the special block meta-event for height.
-		if err := insertEvents(dbtx, blockID, 0, []abci.Event{
-			makeIndexedEvent(types.BlockHeightKey, fmt.Sprint(h.Header.Height)),
-		}); err != nil {
-			return fmt.Errorf("block meta-events: %w", err)
-		}
+		// if err := insertEvents(dbtx, blockID, 0, []abci.Event{
+		// 	makeIndexedEvent(types.BlockHeightKey, fmt.Sprint(h.Header.Height)),
+		// }); err != nil {
+		// 	return fmt.Errorf("block meta-events: %w", err)
+		// }
 		// Insert all the block events. Order is important here,
 		if err := insertEvents(dbtx, blockID, 0, h.ResultBeginBlock.Events); err != nil {
 			return fmt.Errorf("begin-block events: %w", err)
