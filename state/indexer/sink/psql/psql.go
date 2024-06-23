@@ -81,7 +81,7 @@ func queryWithID(tx *sql.Tx, query string, args ...interface{}) (uint32, error) 
 // insertEvents inserts a slice of events and any indexed attributes of those
 // events into the database associated with dbtx.
 //
-// If txID > 0, the event is attributed to the transaction with that
+// If txID > 0, the event is attributed to the Tendermint transaction with that
 // ID; otherwise it is recorded as a block event.
 func insertEvents(dbtx *sql.Tx, blockID, txID uint32, evts []abci.Event) error {
 	// Populate the transaction ID field iff one is defined (> 0).
@@ -92,9 +92,17 @@ func insertEvents(dbtx *sql.Tx, blockID, txID uint32, evts []abci.Event) error {
 
 	// Add each event to the events table, and retrieve its row ID to use when
 	// adding any attributes the event provides.
-	for _, evt := range evts {
+	for idx, evt := range evts {
 		// Skip events with an empty type.
 		if evt.Type == "" {
+			continue
+		}
+
+		if evt.Type == "rewards" {
+			continue
+		}
+
+		if evt.Type == "commission" {
 			continue
 		}
 
@@ -113,9 +121,10 @@ INSERT INTO `+tableEvents+` (block_id, tx_id, type) VALUES ($1, $2, $3)
 			}
 			compositeKey := evt.Type + "." + attr.Key
 			if _, err := dbtx.Exec(`
-INSERT INTO `+tableAttributes+` (event_id, key, composite_key, value)
-  VALUES ($1, $2, $3, $4);
-`, eid, attr.Key, compositeKey, attr.Value); err != nil {
+INSERT INTO `+tableAttributes+` (tx_id, event_id, idx, key, composite_key, value)
+  VALUES ($1, $2, $3, $4, $5, $6)
+  ON CONFLICT DO NOTHING;
+`, txIDArg, eid, idx, attr.Key, compositeKey, attr.Value); err != nil {
 				return err
 			}
 		}
@@ -140,8 +149,6 @@ func makeIndexedEvent(compositeKey, value string) abci.Event {
 // IndexBlockEvents indexes the specified block header, part of the
 // indexer.EventSink interface.
 func (es *EventSink) IndexBlockEvents(h types.EventDataNewBlockHeader) error {
-	ts := time.Now().UTC()
-
 	return runInTransaction(es.store, func(dbtx *sql.Tx) error {
 		// Add the block to the blocks table and report back its row ID for use
 		// in indexing the events for the block.
@@ -150,7 +157,7 @@ INSERT INTO `+tableBlocks+` (height, chain_id, created_at)
   VALUES ($1, $2, $3)
   ON CONFLICT DO NOTHING
   RETURNING rowid;
-`, h.Header.Height, es.chainID, ts)
+`, h.Header.Height, es.chainID, h.Header.Time)
 		if err == sql.ErrNoRows {
 			return nil // we already saw this block; quietly succeed
 		} else if err != nil {
@@ -158,11 +165,11 @@ INSERT INTO `+tableBlocks+` (height, chain_id, created_at)
 		}
 
 		// Insert the special block meta-event for height.
-		if err := insertEvents(dbtx, blockID, 0, []abci.Event{
-			makeIndexedEvent(types.BlockHeightKey, fmt.Sprint(h.Header.Height)),
-		}); err != nil {
-			return fmt.Errorf("block meta-events: %w", err)
-		}
+		// if err := insertEvents(dbtx, blockID, 0, []abci.Event{
+		// 	makeIndexedEvent(types.BlockHeightKey, fmt.Sprint(h.Header.Height)),
+		// }); err != nil {
+		// 	return fmt.Errorf("block meta-events: %w", err)
+		// }
 		// Insert all the block events. Order is important here,
 		if err := insertEvents(dbtx, blockID, 0, h.ResultBeginBlock.Events); err != nil {
 			return fmt.Errorf("begin-block events: %w", err)
